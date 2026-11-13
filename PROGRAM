@@ -1,0 +1,115 @@
+
+clc;
+clear;
+close all;
+
+%% LEAF INSPIRED SOLAR STILL - MATLAB MODEL
+
+% Design parameters
+A = 1.0;                 % Basin area (m2)
+dt = 60;                 % Time step (seconds)
+t = 8:dt/3600:18;        % Simulation time (hours)
+Gmax = 900;              % Maximum solar radiation (W/m2)
+Tamb = 30;               % Ambient temperature (degree C)
+
+% Material properties
+rho = 1000;              % Water density (kg/m3)
+Cp = 4186;               % Specific heat of water (J/kg K)
+hfg = 2.4e6;             % Latent heat (J/kg)
+alpha = 0.90;            % Absorber absorptivity
+tau = 0.85;              % Glass transmissivity
+
+% Initial temperatures
+Tw0 = 30;                % Water temperature
+Tg0 = 30;                % Glass temperature
+
+% Thermal parameters
+hEvap = 8;               % Evaporation heat transfer coefficient
+hConv = 5;               % Convective heat transfer coefficient
+hGlass = 10;             % Glass heat loss coefficient
+
+%% OPTIMIZATION PARAMETERS
+
+depth_values = 0.005:0.005:0.04;
+leaf_values = 1:0.25:2;
+
+best_yield = 0;
+best_depth = 0;
+best_leaf = 0;
+
+for d = depth_values
+    for leaf = leaf_values
+
+        % Water mass
+        mw = rho*A*d;
+
+        % Thermal capacitance
+        Cw = mw*Cp;
+
+        % Initial conditions
+        Tw = Tw0;
+        Tg = Tg0;
+        total_water = 0;
+
+        for k = 1:length(t)-1
+
+            % Solar radiation profile
+            G = Gmax*sin(pi*(t(k)-8)/10);
+            G = max(G,0);
+
+            % Absorbed solar energy
+            Qsolar = alpha*tau*A*G;
+
+            % Evaporation heat transfer
+            hev = hEvap*leaf;
+            Qevap = hev*A*max(Tw-Tg,0);
+
+            % Heat transfer to glass
+            Qwater = hConv*A*(Tw-Tg);
+
+            % Heat loss to atmosphere
+            Qloss = hGlass*A*(Tw-Tamb);
+
+            % Water temperature variation
+            dTw = (Qsolar-Qevap-Qwater-Qloss)/Cw;
+            Tw = Tw + dTw*dt;
+
+            % Glass temperature variation
+            Qglass = Qevap + Qwater;
+            dTg = (Qglass-hGlass*A*(Tg-Tamb))/ ...
+                  (5000);
+
+            Tg = Tg + dTg*dt;
+
+            % Freshwater production (kg)
+            water = Qevap*dt/hfg;
+            total_water = total_water + water;
+
+        end
+
+        % Store best result
+        if total_water > best_yield
+            best_yield = total_water;
+            best_depth = d;
+            best_leaf = leaf;
+        end
+
+    end
+end
+
+%% DISPLAY OPTIMIZED RESULTS
+
+fprintf('\nLEAF INSPIRED SOLAR STILL RESULTS\n');
+fprintf('---------------------------------\n');
+fprintf('Optimized water depth = %.3f m\n',best_depth);
+fprintf('Optimized leaf factor = %.2f\n',best_leaf);
+fprintf('Freshwater yield = %.3f kg/day\n',best_yield);
+
+%% PLOT RESULTS
+
+figure;
+bar([best_yield]);
+title('Optimized Solar Still Freshwater Production');
+ylabel('Freshwater Yield (kg/day)');
+xlabel('Optimized Leaf Inspired Design');
+grid on;
